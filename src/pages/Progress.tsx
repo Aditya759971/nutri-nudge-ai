@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -6,15 +6,58 @@ import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, TrendingDown, TrendingUp, Target } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  getWeightHistory, 
+  addWeightEntry, 
+  getLatestWeight, 
+  getStartingWeight 
+} from "@/lib/nutrition-utils";
 
 const Progress = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [currentWeight, setCurrentWeight] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [startingWeight, setStartingWeight] = useState<number | null>(null);
+  const [latestWeight, setLatestWeight] = useState<number | null>(null);
+  const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [startDate, setStartDate] = useState<string>("");
+
+  useEffect(() => {
+    // Load user data and weight history
+    const userData = localStorage.getItem('userData');
+    if (userData) {
+      const data = JSON.parse(userData);
+      setTargetWeight(parseFloat(data.targetWeight) || null);
+    }
+
+    // Load weight history
+    const history = getWeightHistory();
+    if (history.length > 0) {
+      setStartingWeight(history[0].weight);
+      setLatestWeight(history[history.length - 1].weight);
+      setStartDate(new Date(history[0].date).toLocaleDateString());
+    }
+  }, []);
 
   const handleWeightUpdate = () => {
     if (!currentWeight) return;
+    
+    const weight = parseFloat(currentWeight);
+    if (isNaN(weight) || weight <= 0) {
+      toast({
+        title: "Invalid Weight",
+        description: "Please enter a valid weight value",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Add new weight entry
+    addWeightEntry(weight);
+    
+    // Update displayed values
+    setLatestWeight(weight);
     
     toast({
       title: "Weight Updated",
@@ -22,6 +65,16 @@ const Progress = () => {
     });
     
     setCurrentWeight("");
+  };
+
+  const calculateProgress = () => {
+    if (!startingWeight || !latestWeight) return 0;
+    return startingWeight - latestWeight;
+  };
+
+  const calculateRemaining = () => {
+    if (!latestWeight || !targetWeight) return 0;
+    return latestWeight - targetWeight;
   };
 
   const handleFeedback = (type: string) => {
@@ -81,8 +134,10 @@ const Progress = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">70 kg</div>
-              <p className="text-xs text-muted-foreground">Jan 1, 2025</p>
+              <div className="text-2xl font-bold">
+                {startingWeight ? `${startingWeight} kg` : 'N/A'}
+              </div>
+              <p className="text-xs text-muted-foreground">{startDate || 'Not set'}</p>
             </CardContent>
           </Card>
 
@@ -94,8 +149,14 @@ const Progress = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">68 kg</div>
-              <p className="text-xs text-green-600">-2 kg progress</p>
+              <div className="text-2xl font-bold">
+                {latestWeight ? `${latestWeight} kg` : 'N/A'}
+              </div>
+              {calculateProgress() !== 0 && (
+                <p className={`text-xs ${calculateProgress() > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {calculateProgress() > 0 ? '-' : '+'}{Math.abs(calculateProgress()).toFixed(1)} kg progress
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -107,8 +168,19 @@ const Progress = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">65 kg</div>
-              <p className="text-xs text-muted-foreground">3 kg to go</p>
+              <div className="text-2xl font-bold">
+                {targetWeight ? `${targetWeight} kg` : 'N/A'}
+              </div>
+              {calculateRemaining() > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {calculateRemaining().toFixed(1)} kg to go
+                </p>
+              )}
+              {calculateRemaining() < 0 && (
+                <p className="text-xs text-green-600">
+                  Target achieved! 🎉
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

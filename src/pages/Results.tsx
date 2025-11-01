@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNavigate } from "react-router-dom";
 import { Download, RefreshCw, Home, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { calculateMacroTargets } from "@/lib/nutrition-utils";
+import { generateMealPlanPDF } from "@/lib/pdf-generator";
+import { getAlternativeMeal, mealAlternatives } from "@/data/meal-alternatives";
 
 interface MealItem {
   name: string;
@@ -29,6 +32,7 @@ const Results = () => {
   const [userData, setUserData] = useState<any>(null);
   const [selectedCuisine, setSelectedCuisine] = useState("indian");
   const [dailyCalories, setDailyCalories] = useState(0);
+  const [mealPlan, setMealPlan] = useState<DayPlan | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem('userData');
@@ -55,6 +59,9 @@ const Results = () => {
     const goalAdjustment = data.goal === 'weight-loss' ? -500 : data.goal === 'muscle-gain' ? 300 : 0;
     
     setDailyCalories(Math.round(tdee + goalAdjustment));
+    
+    // Initialize meal plan
+    setMealPlan(sampleMealPlan);
   }, [navigate]);
 
   // Sample meal plan (in real app, this would come from AI)
@@ -91,24 +98,49 @@ const Results = () => {
     );
   };
 
-  const allMeals = [...sampleMealPlan.breakfast, ...sampleMealPlan.lunch, ...sampleMealPlan.dinner, ...sampleMealPlan.snacks];
-  const totalMacros = calculateTotalMacros(allMeals);
+  // Calculate target macros based on daily calories and goal
+  const targetMacros = userData ? calculateMacroTargets(dailyCalories, userData.goal) : null;
 
-  const handleSwap = (mealName: string) => {
+  const handleSwap = (mealType: 'breakfast' | 'lunch' | 'dinner' | 'snacks', mealIndex: number) => {
+    if (!mealPlan) return;
+    
+    // Determine alternative type based on meal type and index
+    let alternativeType: keyof typeof mealAlternatives = mealType;
+    
+    // For lunch and dinner, check if it's a main or side dish based on index
+    if ((mealType === 'lunch' || mealType === 'dinner') && mealIndex > 0) {
+      alternativeType = 'sides';
+    }
+    
+    const alternative = getAlternativeMeal(alternativeType);
+    
+    const updatedMealPlan = { ...mealPlan };
+    updatedMealPlan[mealType][mealIndex] = alternative;
+    setMealPlan(updatedMealPlan);
+    
     toast({
-      title: "Meal Swap",
-      description: `Finding alternatives for ${mealName}...`,
+      title: "Meal Swapped!",
+      description: `Replaced with ${alternative.name}`,
     });
   };
 
   const handleDownload = () => {
+    if (!userData || !mealPlan || !targetMacros) return;
+    
     toast({
-      title: "Downloading Plan",
-      description: "Your meal plan PDF is being generated...",
+      title: "Generating PDF",
+      description: "Your meal plan is being downloaded...",
     });
+    
+    generateMealPlanPDF(
+      { name: userData.name, goal: userData.goal },
+      dailyCalories,
+      targetMacros,
+      mealPlan
+    );
   };
 
-  if (!userData) return null;
+  if (!userData || !mealPlan || !targetMacros) return null;
 
   return (
     <div className="min-h-screen py-12 bg-gradient-subtle">
@@ -143,33 +175,40 @@ const Results = () => {
 
           <Card className="shadow-soft border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Protein</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Protein Target</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalMacros.protein}g</div>
-              <p className="text-xs text-muted-foreground">{Math.round((totalMacros.protein * 4 / totalMacros.calories) * 100)}% of total</p>
+              <div className="text-2xl font-bold">{targetMacros.protein}g</div>
+              <p className="text-xs text-muted-foreground">{Math.round((targetMacros.proteinCalories / dailyCalories) * 100)}% of total</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-soft border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Carbs</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Carbs Target</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalMacros.carbs}g</div>
-              <p className="text-xs text-muted-foreground">{Math.round((totalMacros.carbs * 4 / totalMacros.calories) * 100)}% of total</p>
+              <div className="text-2xl font-bold">{targetMacros.carbs}g</div>
+              <p className="text-xs text-muted-foreground">{Math.round((targetMacros.carbsCalories / dailyCalories) * 100)}% of total</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-soft border-border">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Fats</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Fats Target</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{totalMacros.fats}g</div>
-              <p className="text-xs text-muted-foreground">{Math.round((totalMacros.fats * 9 / totalMacros.calories) * 100)}% of total</p>
+              <div className="text-2xl font-bold">{targetMacros.fats}g</div>
+              <p className="text-xs text-muted-foreground">{Math.round((targetMacros.fatsCalories / dailyCalories) * 100)}% of total</p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Note about sample plan */}
+        <div className="mb-4 p-3 rounded-lg bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800">
+          <p className="text-sm text-blue-900 dark:text-blue-100">
+            💡 <strong>Note:</strong> The meal plan below is a sample. Target values shown above are your personalized nutritional goals based on your profile.
+          </p>
         </div>
 
         {/* Meal Plan Controls */}
@@ -205,12 +244,12 @@ const Results = () => {
               <CardHeader>
                 <CardTitle className="capitalize text-xl">{mealType}</CardTitle>
                 <CardDescription>
-                  Total: {calculateTotalMacros(sampleMealPlan[mealType]).calories} kcal
+                  Total: {calculateTotalMacros(mealPlan[mealType]).calories} kcal
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {sampleMealPlan[mealType].map((meal, idx) => (
+                  {mealPlan[mealType].map((meal, idx) => (
                     <div key={idx} className="flex items-start justify-between p-4 rounded-lg bg-accent/30 hover:bg-accent/50 transition-colors">
                       <div className="flex-1">
                         <h4 className="font-semibold mb-1">{meal.name}</h4>
@@ -233,7 +272,8 @@ const Results = () => {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleSwap(meal.name)}
+                        onClick={() => handleSwap(mealType, idx)}
+                        title="Swap for alternative"
                       >
                         <RefreshCw className="w-4 h-4" />
                       </Button>

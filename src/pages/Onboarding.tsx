@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Info } from "lucide-react";
+import { getBMIStatus, initializeWeightHistory } from "@/lib/nutrition-utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface FormData {
   name: string;
@@ -20,6 +22,7 @@ interface FormData {
   activityLevel: string;
   dietaryPreference: string;
   allergies: string;
+  medicalConditions: string;
   routine: string;
 }
 
@@ -37,6 +40,7 @@ const Onboarding = () => {
     activityLevel: "",
     dietaryPreference: "",
     allergies: "",
+    medicalConditions: "",
     routine: "",
   });
 
@@ -65,6 +69,9 @@ const Onboarding = () => {
 
     // Store form data in localStorage (in real app, would send to backend)
     localStorage.setItem('userData', JSON.stringify(formData));
+    
+    // Initialize weight history
+    initializeWeightHistory(parseFloat(formData.weight));
     
     toast({
       title: "Profile Created!",
@@ -177,7 +184,35 @@ const Onboarding = () => {
 
               {bmi && (
                 <div className="p-4 rounded-lg bg-accent/50 border border-border">
-                  <p className="text-sm font-medium">Current BMI: <span className="text-lg text-primary">{bmi}</span></p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium mb-1">
+                        Current BMI: <span className="text-lg text-primary font-bold">{bmi}</span>
+                      </p>
+                      <p className={`text-sm font-semibold ${getBMIStatus(parseFloat(bmi)).color}`}>
+                        {getBMIStatus(parseFloat(bmi)).status}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {getBMIStatus(parseFloat(bmi)).description}
+                      </p>
+                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="w-5 h-5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">
+                            <strong>BMI Ranges:</strong><br />
+                            Underweight: &lt; 18.5<br />
+                            Normal: 18.5 - 24.9<br />
+                            Overweight: 25 - 29.9<br />
+                            Obese: ≥ 30
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
                 </div>
               )}
 
@@ -238,6 +273,17 @@ const Onboarding = () => {
                   placeholder="e.g., Nuts, Dairy, Gluten"
                   value={formData.allergies}
                   onChange={(e) => handleChange('allergies', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="medicalConditions">Medical Conditions (Optional)</Label>
+                <Textarea
+                  id="medicalConditions"
+                  placeholder="e.g., Diabetes, PCOS, Thyroid, High Blood Pressure, Heart Disease, etc."
+                  value={formData.medicalConditions}
+                  onChange={(e) => handleChange('medicalConditions', e.target.value)}
+                  rows={2}
                 />
               </div>
 
