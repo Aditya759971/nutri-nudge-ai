@@ -24,19 +24,35 @@ const Progress = () => {
   const [startDate, setStartDate] = useState<string>("");
 
   useEffect(() => {
-    // Load user data and weight history
+    // Load user data
     const userData = localStorage.getItem('userData');
     if (userData) {
       const data = JSON.parse(userData);
       setTargetWeight(parseFloat(data.targetWeight) || null);
     }
 
-    // Load weight history
+    // Load weight history and ALWAYS use persisted start weight
+    const persistedStartWeight = localStorage.getItem('nutri:startWeightKg');
+    const persistedCurrentWeight = localStorage.getItem('nutri:currentWeightKg');
+    
+    if (persistedStartWeight) {
+      setStartingWeight(parseFloat(persistedStartWeight));
+    }
+    
+    if (persistedCurrentWeight) {
+      setLatestWeight(parseFloat(persistedCurrentWeight));
+    }
+    
     const history = getWeightHistory();
     if (history.length > 0) {
-      setStartingWeight(history[0].weight);
-      setLatestWeight(history[history.length - 1].weight);
       setStartDate(new Date(history[0].date).toLocaleDateString());
+      // Only use history weight if no persisted values exist
+      if (!persistedStartWeight) {
+        setStartingWeight(history[0].weight);
+      }
+      if (!persistedCurrentWeight) {
+        setLatestWeight(history[history.length - 1].weight);
+      }
     }
   }, []);
 
@@ -53,8 +69,11 @@ const Progress = () => {
       return;
     }
     
-    // Add new weight entry
+    // Add new weight entry to history
     addWeightEntry(weight);
+    
+    // Update persisted current weight
+    localStorage.setItem('nutri:currentWeightKg', weight.toString());
     
     // Update displayed values
     setLatestWeight(weight);
@@ -65,6 +84,29 @@ const Progress = () => {
     });
     
     setCurrentWeight("");
+  };
+
+  const handleRecalculatePlan = () => {
+    if (!latestWeight) {
+      toast({
+        title: "No Weight Data",
+        description: "Please log your current weight first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Clear meal plan cache to force regeneration
+    localStorage.removeItem('nutri:mealPlan');
+    localStorage.removeItem('nutri:mealPlanTimestamp');
+    
+    toast({
+      title: "Recalculating Plan",
+      description: "Your meal plan is being updated based on your new weight...",
+    });
+    
+    // Navigate to results which will detect the weight change and regenerate
+    setTimeout(() => navigate('/results'), 1500);
   };
 
   const calculateProgress = () => {
@@ -228,16 +270,13 @@ const Progress = () => {
           <Button
             variant="hero"
             size="lg"
-            onClick={() => {
-              toast({
-                title: "Recalculating Plan",
-                description: "Your meal plan is being updated based on your progress...",
-              });
-              setTimeout(() => navigate('/results'), 1500);
-            }}
+            onClick={handleRecalculatePlan}
           >
             Recalculate My Plan
           </Button>
+          <p className="text-xs text-muted-foreground mt-2">
+            This will regenerate your meal plan based on your current weight
+          </p>
         </div>
       </div>
     </div>

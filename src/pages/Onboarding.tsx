@@ -67,15 +67,20 @@ const Onboarding = () => {
       return;
     }
 
-    // Store form data in localStorage (in real app, would send to backend)
+    // Store form data in localStorage
     localStorage.setItem('userData', JSON.stringify(formData));
+    
+    // CRITICAL: Persist start weight separately so it never changes
+    localStorage.setItem('nutri:startWeightKg', formData.weight);
+    localStorage.setItem('nutri:currentWeightKg', formData.weight);
+    localStorage.setItem('nutri:onboardingTimestamp', Date.now().toString());
     
     // Initialize weight history
     initializeWeightHistory(parseFloat(formData.weight));
     
     toast({
       title: "Profile Created!",
-      description: "Generating your personalized meal plan...",
+      description: "Generating your personalized AI meal plan...",
     });
     
     navigate('/results');
