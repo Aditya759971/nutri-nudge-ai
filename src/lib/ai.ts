@@ -22,6 +22,10 @@ export interface MealPlanRequest {
     fat_g: number;
   };
   days?: number;
+  dailyExclusions?: Record<string, string[]>;
+  regenerationSeed?: string;
+  previousMealNames?: string[];
+  forceRegenerate?: boolean;
 }
 
 export interface Meal {
@@ -36,6 +40,7 @@ export interface Meal {
   };
   allergens?: string[];
   tags?: string[];
+  ingredients?: string[];
 }
 
 export interface DayPlan {
@@ -85,6 +90,10 @@ export async function generateMealPlan(
       targetCalories: request.targetCalories,
       macros: request.macros,
       days: request.days || 7,
+      dailyExclusions: request.dailyExclusions,
+      regenerationSeed: request.regenerationSeed,
+      previousMealNames: request.previousMealNames,
+      forceRegenerate: request.forceRegenerate,
     },
   });
 
@@ -94,4 +103,97 @@ export async function generateMealPlan(
   }
 
   return data as GeneratePlanResponse;
+}
+
+/**
+ * Swap a meal with alternatives
+ */
+export async function swapMeal(
+  currentMeal: Meal,
+  constraints: {
+    dietType: string;
+    allergens?: string[];
+    medicalConditions?: string[];
+  }
+): Promise<Meal[]> {
+  const { data, error } = await supabase.functions.invoke('swap-meal', {
+    body: {
+      currentMeal,
+      constraints,
+    },
+  });
+
+  if (error) {
+    console.error('Error swapping meal:', error);
+    throw new Error(`Failed to swap meal: ${error.message}`);
+  }
+
+  return data.alternatives as Meal[];
+}
+
+/**
+ * Chat with AI for custom diet questions
+ */
+export async function askAI(
+  message: string,
+  conversationHistory: Array<{ role: string; content: string }> = [],
+  userContext?: {
+    goal: string;
+    dietType: string;
+    targetCalories: number;
+  }
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('ai-chat', {
+    body: {
+      message,
+      conversationHistory,
+      userContext,
+    },
+  });
+
+  if (error) {
+    console.error('Error in AI chat:', error);
+    throw new Error(`Failed to get AI response: ${error.message}`);
+  }
+
+  return data.reply as string;
+}
+
+/**
+ * Parse daily exclusions from routine text
+ */
+export function parseDailyExclusions(routineText: string): Record<string, string[]> {
+  if (!routineText) return {};
+  
+  const exclusions: Record<string, string[]> = {};
+  const text = routineText.toLowerCase();
+  
+  const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+  const patterns = [
+    /no\s+(\w+)\s+on\s+([\w\s,and]+)/gi,
+    /avoid\s+(\w+)\s+on\s+([\w\s,and]+)/gi,
+    /don't\s+eat\s+(\w+)\s+on\s+([\w\s,and]+)/gi,
+    /skip\s+(\w+)\s+on\s+([\w\s,and]+)/gi,
+  ];
+  
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const food = match[1].trim();
+      const daysText = match[2];
+      
+      const foundDays = daysOfWeek.filter(day => daysText.includes(day));
+      
+      for (const day of foundDays) {
+        if (!exclusions[day]) {
+          exclusions[day] = [];
+        }
+        if (!exclusions[day].includes(food)) {
+          exclusions[day].push(food);
+        }
+      }
+    }
+  }
+  
+  return exclusions;
 }

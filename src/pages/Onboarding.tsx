@@ -67,8 +67,12 @@ const Onboarding = () => {
       return;
     }
 
-    // Store form data in localStorage
-    localStorage.setItem('userData', JSON.stringify(formData));
+    // Store form data in localStorage with proper dietary preference mapping
+    const dataToStore = {
+      ...formData,
+      dietPreference: formData.dietaryPreference || 'mixed'
+    };
+    localStorage.setItem('userData', JSON.stringify(dataToStore));
     
     // CRITICAL: Persist start weight separately so it never changes
     localStorage.setItem('nutri:startWeightKg', formData.weight);
