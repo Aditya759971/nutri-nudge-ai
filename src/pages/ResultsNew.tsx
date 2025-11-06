@@ -174,10 +174,31 @@ const ResultsNew = () => {
   };
 
   const handleExportCalendar = () => {
-    if (!mealPlan || !userData) return;
-    const icsContent = generateICSFile(mealPlan, userData.name);
-    downloadICSFile(icsContent, `NutriNudge_MealPlan_${userData.name}.ics`);
-    toast({ title: "Calendar Exported!", description: "Meal plan added to your calendar" });
+    if (!mealPlan || !userData) {
+      toast({ 
+        title: "Cannot Export", 
+        description: "Meal plan not loaded yet",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    try {
+      const icsContent = generateICSFile(mealPlan, userData.name);
+      downloadICSFile(icsContent, `NutriNudge_MealPlan_${userData.name}.ics`);
+      toast({ 
+        title: "Calendar Exported! 📅", 
+        description: "Import the .ics file into your calendar app (Outlook, Google Calendar, Apple Calendar)",
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('Calendar export error:', error);
+      toast({ 
+        title: "Export Failed", 
+        description: "Could not generate calendar file. Please try again.",
+        variant: "destructive" 
+      });
+    }
   };
 
   const handleDownload = () => {

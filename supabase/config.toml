@@ -2,3 +2,9 @@ project_id = "swrcalibnjlviqctgfwm"
 
 [functions.generate-plan]
 verify_jwt = false
+
+[functions.swap-meal]
+verify_jwt = false
+
+[functions.ai-chat]
+verify_jwt = false

@@ -41,8 +41,15 @@ export function generateGroceryList(mealPlan: MealPlan): GroceryList {
   // Extract all ingredients from all days
   mealPlan.days.forEach(day => {
     day.meals.forEach(meal => {
-      if (meal.ingredients) {
-        meal.ingredients.forEach(ingredient => {
+      let ingredients = meal.ingredients;
+      
+      // Fallback: extract ingredients from meal name if not provided
+      if (!ingredients || ingredients.length === 0) {
+        ingredients = extractIngredientsFromName(meal.name);
+      }
+      
+      if (ingredients && ingredients.length > 0) {
+        ingredients.forEach(ingredient => {
           const normalizedIngredient = ingredient.toLowerCase().trim();
           const category = categorizeIngredient(normalizedIngredient);
           
@@ -89,6 +96,36 @@ function categorizeIngredient(ingredient: string): string {
 
 function capitalizeFirstLetter(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Fallback: Extract ingredients from meal name when not provided by AI
+ * Example: "Grilled Chicken with Rice" -> ["chicken", "rice"]
+ */
+function extractIngredientsFromName(mealName: string): string[] {
+  const ingredients: string[] = [];
+  const lowerName = mealName.toLowerCase();
+  
+  // Common food keywords to look for
+  const foodKeywords = [
+    'chicken', 'beef', 'fish', 'salmon', 'tuna', 'egg', 'tofu', 'paneer', 'dal',
+    'rice', 'quinoa', 'oats', 'bread', 'pasta', 'roti', 'noodles',
+    'broccoli', 'spinach', 'carrot', 'tomato', 'onion', 'pepper', 'beans',
+    'apple', 'banana', 'berries', 'mango', 'yogurt', 'milk', 'cheese'
+  ];
+  
+  foodKeywords.forEach(keyword => {
+    if (lowerName.includes(keyword)) {
+      ingredients.push(keyword);
+    }
+  });
+  
+  // If no ingredients found, use the meal name itself as a generic ingredient
+  if (ingredients.length === 0) {
+    ingredients.push(mealName);
+  }
+  
+  return ingredients;
 }
 
 export function formatGroceryListAsText(groceryList: GroceryList): string {
